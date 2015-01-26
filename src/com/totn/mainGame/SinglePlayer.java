@@ -5,11 +5,10 @@ import org.lwjgl.Sys;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
-import org.lwjgl.opengl.GL11;
-
-import com.totn.entities.AbstractMoveableEntity;
 
 import static org.lwjgl.opengl.GL11.*;
+
+import com.totn.entities.AbstractMoveableEntity;
 
 public class SinglePlayer {
 	
@@ -19,6 +18,7 @@ public class SinglePlayer {
     private static int hit = 0;
     private static int pIIs = 0;
     private static boolean isRunning = true;
+    private static boolean paused = false;
     private static Ball ball;
     private static Bat bat;
     private static Bat opbat;
@@ -27,16 +27,30 @@ public class SinglePlayer {
     private static final double pSpeed = .25;
     private static double pISpeed = .25;
     private static double pIISpeed = .25;
+    private static State state = State.PRE;
 
+    public static enum State {
+        PRE, MAIN, PAUSE
+    }
+    
     public SinglePlayer() 
     {
-//    	"Main" method which the game repeats until the loop is broken
+//   	"Main" method which the game repeats until the loop is broken 	
         setUpDisplay();
         setUpOpenGL();
         setUpEntities();
         setUpTimer();
+//        setup title
+        Display.setTitle("Pong" + " | " + "P1: " + pIs + " | " + "P2: " + pIIs + " | " + "Hit: " + hit);
         while (isRunning) 
         {
+        	if (state == state.MAIN){
+        		Display.setTitle("Pong" + " | " + "P1: " + pIs + " | " + "P2: " + pIIs + " | " + "Hit: " + hit);
+        	} else if (state == state.PAUSE)
+        	{
+        		Display.setTitle("Pong" + " | " + "Paused");
+        	}
+        	System.out.println(velocity);
             render();
             logic(getDelta());
             input();
@@ -54,20 +68,21 @@ public class SinglePlayer {
     {
 //    	User Input method. All input from the user should go here
 //    	Move the bat up or down depending on the W/S keys
-        if (bat.getY() < height - 90 && Keyboard.isKeyDown(Keyboard.KEY_W) ) 
-        {
-                bat.setDY(pISpeed);
-        	} else if (bat.getY() > 0 + 10 && Keyboard.isKeyDown(Keyboard.KEY_S)) 
+        if (state == State.MAIN){
+        	if (!paused && bat.getY() < height - 90 && Keyboard.isKeyDown(Keyboard.KEY_W) ) 
         	{
-                bat.setDY(-pISpeed);
+        		bat.setDY(pISpeed);
+        	} else if (!paused && bat.getY() > 0 + 10 && Keyboard.isKeyDown(Keyboard.KEY_S)) 
+        	{
+        		bat.setDY(-pISpeed);
         	} else {
                 bat.setDY(0);
         	}
 //      Move the bat up or down depending on the Up/Down arrows
-        if (opbat.getY() < height - 90 && Keyboard.isKeyDown(Keyboard.KEY_UP) ) 
-        {
+        	if (!paused && opbat.getY() < height - 90 && Keyboard.isKeyDown(Keyboard.KEY_UP) ) 
+        	{
         		opbat.setDY(pIISpeed);
-        	} else if (opbat.getY() > 0 + 10 && Keyboard.isKeyDown(Keyboard.KEY_DOWN)) 
+        	} else if (!paused && opbat.getY() > 0 + 10 && Keyboard.isKeyDown(Keyboard.KEY_DOWN)) 
         	{
         		opbat.setDY(-pIISpeed);
         	} else {
@@ -75,22 +90,51 @@ public class SinglePlayer {
         	}
 //      Closes the display when escape is hit
 //      REMOVE IN MULTIPLAYER VERSION
-        if (Keyboard.isKeyDown(Keyboard.KEY_ESCAPE)) 
-        {
-            Display.destroy();
-            System.exit(0);
+        	if (Keyboard.isKeyDown(Keyboard.KEY_ESCAPE)) 
+        	{
+        		Display.destroy();
+        		System.exit(0);
+        	}
+        	if(!paused && Keyboard.isKeyDown(Keyboard.KEY_Q))
+        	{
+        		pIISpeed = .1;
+        	} else {
+        		pIISpeed = pSpeed; 
+        	}
         }
-//      Begins the game, will be set to automatic in future updates
-        if(Keyboard.isKeyDown(Keyboard.KEY_T))
-        {
-            ball.setDX(velocity);
-            ball.setDY(yvelocity);
-        }
-        if(Keyboard.isKeyDown(Keyboard.KEY_Q))
-        {
-        	pIISpeed = .1;
-        } else {
-        	pIISpeed = pSpeed; 
+
+        switch (state) {
+        case PRE:
+            if (Keyboard.isKeyDown(Keyboard.KEY_T)) {
+                state = State.MAIN;
+                ball.setDX(velocity);
+                ball.setDY(yvelocity);
+            }
+            if (Keyboard.isKeyDown(Keyboard.KEY_ESCAPE)) {
+                Display.destroy();
+                System.exit(0);
+            }
+            break;
+        case PAUSE:
+            if (Keyboard.isKeyDown(Keyboard.KEY_O)) {
+                state = State.MAIN;
+                ball.setDX(velocity);
+                ball.setDY(yvelocity);
+            }
+            break;
+        case MAIN:
+            if (Keyboard.isKeyDown(Keyboard.KEY_P)) {
+                state = State.PAUSE;
+                ball.setDX(0);
+                ball.setDY(0);
+                bat.setDY(0);
+                opbat.setDY(0);
+            }
+            if (Keyboard.isKeyDown(Keyboard.KEY_ESCAPE)) {
+                Display.destroy();
+                System.exit(0);
+            }
+            break;
         }
     }
 
@@ -159,7 +203,6 @@ public class SinglePlayer {
         bat.update(delta);
         opbat.update(delta);
         
-        
 //        Increases the speed of the ball as the amount of hits increases
         if(hit==0)
         {
@@ -169,22 +212,36 @@ public class SinglePlayer {
         }
         
 //        Sets the display title before every tick
-        Display.setTitle("Pong" + " | " + "P1: " + pIs + " | " + "P2: " + pIIs + " | " + "Hit: " + hit);
         
 //        If ball hits bat
         if (ball.getX() <= bat.getX() + bat.getWidth() && ball.getX() >= bat.getX()/* && ball.getY() >= bat.getY() - ball.getHeight() &&
                 ball.getY() <= bat.getY() + bat.getHeight()*/) 
         {
             ball.setDX(velocity);
-            ball.setDY(yvelocity);
+            if(ball.getY() <= bat.getY()+bat.getHeight()/2)
+            {
+            	yvelocity = -Math.abs(yvelocity);
+                ball.setDY(yvelocity);
+            } else if(ball.getY() >= bat.getY()+bat.getHeight()/2) {
+            	yvelocity = Math.abs(yvelocity);
+                ball.setDY(yvelocity);
+            }
             hit++;
-        }
+        } 
 //        If ball hits opbat
-        if (ball.getX() <= opbat.getX() && ball.getX() >= opbat.getX() - opbat.getWidth() && ball.getY() >= opbat.getY() - ball.getHeight() &&
-                ball.getY() <= opbat.getY() + opbat.getHeight())
+        else if (ball.getX() <= opbat.getX() && ball.getX() >= opbat.getX() - opbat.getWidth()/* && ball.getY() >= opbat.getY() - ball.getHeight() &&
+                ball.getY() <= opbat.getY() + opbat.getHeight()*/)
         {
-            ball.setDX(-velocity);
-            ball.setDY(yvelocity);
+        	velocity=-velocity;
+            ball.setDX(velocity);
+            if(ball.getY() <= opbat.getY()+bat.getHeight()/2)
+            {
+            	yvelocity = -Math.abs(yvelocity);
+                ball.setDY(yvelocity);
+            } else if(ball.getY() >= opbat.getY()+bat.getHeight()/2) {
+            	yvelocity = Math.abs(yvelocity);
+                ball.setDY(yvelocity);
+            }
             hit++;
         }
 //        If the ball bounces of the top or the bottom
@@ -193,42 +250,48 @@ public class SinglePlayer {
         	yvelocity = -yvelocity;
         	ball.setDY(yvelocity);
         } else if (ball.getY() <= 0) 
-        { 
+        {
         	yvelocity = -yvelocity;
         	ball.setDY(yvelocity);
         }
 //        For when the ball scores
         if(ball.getX() > width)
         {
-       		if(opbat.getY() < height / 2)
-       		{
-       			yvelocity = 0 - Math.abs(yvelocity);
-       			ball.setDY(yvelocity);
-       		} else 
-       		{
-       			yvelocity = Math.abs(yvelocity);
-       			ball.setDY(yvelocity);
-       		}
-       		
-        	ball.setDX(-Math.abs(ball.getDX()));
             ball.setX(width / 2 + 150);
             ball.setY(height / 2 - 10 / 2);
 
             pIs++;
             hit = -1;
             hit++;
+            
+       		if(opbat.getY() + opbat.getHeight()/2< height / 2)
+       		{
+       			yvelocity = 0 - Math.abs(yvelocity);
+       			ball.setDY(yvelocity);
+       			velocity = -Math.abs(velocity);
+            	ball.setDX(velocity);
+       		} else 
+       		{
+       			yvelocity = Math.abs(yvelocity);
+       			ball.setDY(yvelocity);
+       			velocity = -Math.abs(velocity);
+            	ball.setDX(velocity);
+       		}
         } else if (ball.getX() < 0)
         {
-        	if(bat.getY() < height / 2)
+        	if(bat.getY() + bat.getHeight()/2< height / 2)
         	{
         		yvelocity = 0 - Math.abs(yvelocity);
         		ball.setDY(yvelocity);
+       			velocity = Math.abs(velocity);
+            	ball.setDX(velocity);
         	} else 
         	{
         		yvelocity = Math.abs(yvelocity);
         		ball.setDY(yvelocity);
+       			velocity = Math.abs(velocity);
+            	ball.setDX(velocity);
         	}
-        	ball.setDX(Math.abs(ball.getDX()));
             ball.setX(width / 2 - 150);
             ball.setY(height / 2 - 10 / 2);
             
@@ -237,6 +300,7 @@ public class SinglePlayer {
             hit++;
         }
     }
+    
 //    Creates the bat and ball classes
     public static class Bat extends AbstractMoveableEntity 
     {
